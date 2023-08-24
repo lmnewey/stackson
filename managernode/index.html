@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Worker Nodes</title>
+</head>
+<body>
+    <h1>Worker Nodes</h1>
+    <ul>
+        {% for node in worker_nodes %}
+            <li>{{ node.id }} - Status: {{ node.status }}</li>
+        {% endfor %}
+    </ul>
+    <h2>Send Command</h2>
+    <form action="/send_command" method="post">
+        <label for="node_id">Node ID:</label>
+        <input type="text" id="node_id" name="node_id"><br>
+        <label for="command">Command:</label>
+        <input type="text" id="command" name="command"><br>
+        <input type="submit" value="Send Command">
+    </form>
+    <h2>Command Results</h2>
+    <pre>{{ command_results }}</pre>
+</body>
+</html>
