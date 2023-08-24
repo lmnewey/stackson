@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request
+from flask import Flask, render_template
 import paho.mqtt.client as mqtt
 import json
 
@@ -7,21 +7,24 @@ app = Flask(__name__)
 # MQTT settings
 MQTT_BROKER_HOST = "192.168.0.40"
 MQTT_BROKER_PORT = 1883
-MQTT_TOPIC_STATUS = "worker/+/status"  # Subscribe to status announcements from all nodes
-MQTT_TOPIC_STATS = "worker/{}/stats"   # Subscribe to stats from specific nodes
+MQTT_TOPIC_PREFIX = "worker/"  # Subscribe to all worker topics
 
 # Simple in-memory data structure to store worker nodes
 worker_nodes = []
 
-# Callback when a message is received on the status topic
-def on_status_message(client, userdata, message):
+# Callback when a message is received
+def on_message(client, userdata, message):
     payload = message.payload.decode("utf-8")
-    status_data = json.loads(payload)
-    
-    node_id = status_data["node_id"]
-    status = status_data["status"]
+    topic_parts = message.topic.split("/")
+    if len(topic_parts) == 3 and topic_parts[0] == "worker":
+        node_id = topic_parts[1]
+        if topic_parts[2] == "status":
+            update_worker_status(node_id, payload)
+        elif topic_parts[2] == "stats":
+            update_worker_stats(node_id, payload)
 
-    # Update or add the node to the list
+# Update or add the node to the list
+def update_worker_status(node_id, status):
     for node in worker_nodes:
         if node["id"] == node_id:
             node["status"] = status
@@ -29,28 +32,17 @@ def on_status_message(client, userdata, message):
     else:
         worker_nodes.append({"id": node_id, "status": status})
 
-# Callback when a message is received on the stats topic
-def on_stats_message(client, userdata, message):
-    payload = message.payload.decode("utf-8")
-    stats_data = json.loads(payload)
-    
-    node_id = message.topic.split("/")[1]  # Extract the node_id from the topic
-    # Update the stats data for the corresponding node (you can handle this based on your data structure)
-    # ...
+# Update worker stats (to be implemented based on your data structure)
+def update_worker_stats(node_id, stats_payload):
+    pass
 
-# Setup MQTT client for status messages
-status_client = mqtt.Client(client_id="status_listener")
-status_client.on_message = on_status_message
-status_client.connect(MQTT_BROKER_HOST, MQTT_BROKER_PORT, 60)
-status_client.subscribe(MQTT_TOPIC_STATUS)
-status_client.loop_start()
-
-# Setup MQTT client for stats messages
-stats_client = mqtt.Client(client_id="stats_listener")
-stats_client.on_message = on_stats_message
-stats_client.connect(MQTT_BROKER_HOST, MQTT_BROKER_PORT, 60)
-stats_client.subscribe(MQTT_TOPIC_STATS.format("+"))  # Subscribe to stats from all nodes
-stats_client.loop_start()
+# Setup MQTT client
+mqtt_client = mqtt.Client(client_id="worker_listener")
+mqtt_client.on_message = on_message
+mqtt_client.connect(MQTT_BROKER_HOST, MQTT_BROKER_PORT, 60)
+mqtt_client.subscribe(MQTT_TOPIC_PREFIX + "+/status")
+mqtt_client.subscribe(MQTT_TOPIC_PREFIX + "+/stats")
+mqtt_client.loop_start()
 
 @app.route("/")
 def index():
